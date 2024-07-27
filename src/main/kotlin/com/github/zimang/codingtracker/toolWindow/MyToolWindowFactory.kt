@@ -1,45 +1,52 @@
 package com.github.zimang.codingtracker.toolWindow
 
 import com.intellij.openapi.components.service
-import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
 import com.intellij.ui.content.ContentFactory
-import com.github.zimang.codingtracker.MyBundle
-import com.github.zimang.codingtracker.services.MyProjectService
+import com.github.zimang.codingtracker.listeners.TypingTrackerService
+import javax.swing.BoxLayout
 import javax.swing.JButton
-
+import javax.swing.JPanel
+import javax.swing.JScrollPane
+import javax.swing.ScrollPaneConstants
 
 class MyToolWindowFactory : ToolWindowFactory {
 
-    init {
-        thisLogger().warn("Don't forget to remove all non-needed sample code files with their corresponding registration entries in `plugin.xml`.")
-    }
-
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
-        val myToolWindow = MyToolWindow(toolWindow)
-        val content = ContentFactory.getInstance().createContent(myToolWindow.getContent(), null, false)
+        val typingTrackerService = project.service<TypingTrackerService>()
+        val contentFactory = ContentFactory.getInstance()
+        val content = contentFactory.createContent(createContent(typingTrackerService), "", false)
         toolWindow.contentManager.addContent(content)
     }
 
-    override fun shouldBeAvailable(project: Project) = true
+    private fun createContent(typingTrackerService: TypingTrackerService): JPanel {
+        val panel = JBPanel<JBPanel<*>>()
+        panel.layout = BoxLayout(panel, BoxLayout.Y_AXIS)
 
-    class MyToolWindow(toolWindow: ToolWindow) {
+        val scrollPane = JScrollPane(panel)
+        scrollPane.verticalScrollBarPolicy = ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS
 
-        private val service = toolWindow.project.service<MyProjectService>()
+        val mainPanel = JBPanel<JBPanel<*>>()
+        mainPanel.layout = BoxLayout(mainPanel, BoxLayout.Y_AXIS)
+        mainPanel.add(scrollPane)
 
-        fun getContent() = JBPanel<JBPanel<*>>().apply {
-            val label = JBLabel(MyBundle.message("randomLabel", "?"))
-
-            add(label)
-            add(JButton(MyBundle.message("shuffle")).apply {
-                addActionListener {
-                    label.text = MyBundle.message("randomLabel", service.getRandomNumber())
+        val refreshButton = JButton("Refresh").apply {
+            addActionListener {
+                panel.removeAll()
+                typingTrackerService.getTypingIntervals().forEach { record ->
+                    panel.add(JBLabel(record.toString()))
                 }
-            })
+                panel.revalidate()
+                panel.repaint()
+            }
         }
+
+        mainPanel.add(refreshButton)
+
+        return mainPanel
     }
 }
